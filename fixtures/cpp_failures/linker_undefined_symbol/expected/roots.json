@@ -1,0 +1,14 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "linker_undefined_symbol",
+    "message": "undefined reference to `never_defined()'",
+    "location": {"file": "src/main.cpp", "line": 4, "column": 5},
+    "symbol": "never_defined()",
+    "confidence": 1.0,
+    "affected_translation_units": 1,
+    "collapsed_diagnostics": 2,
+    "evidence": ["collect2 and make messages are build consequences"]
+  }
+]

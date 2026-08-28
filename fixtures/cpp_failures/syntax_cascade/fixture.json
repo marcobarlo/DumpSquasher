@@ -1,0 +1,1 @@
+{"name": "syntax_cascade", "build": ["make"], "compiler": "g++"}

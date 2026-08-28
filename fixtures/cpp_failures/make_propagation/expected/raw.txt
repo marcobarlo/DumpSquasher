@@ -1,0 +1,6 @@
+make --no-print-directory -C lib
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -c broken.cpp -o broken.o
+broken.cpp: In function ‘int broken()’:
+broken.cpp:1:23: error: ‘NOT_DEFINED’ was not declared in this scope
+make[1]: *** [Makefile:6: all] Error 1
+make: *** [Makefile:3: all] Error 2

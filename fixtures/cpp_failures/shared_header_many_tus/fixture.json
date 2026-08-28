@@ -1,0 +1,1 @@
+{"name": "shared_header_many_tus", "build": ["make", "-k"], "compiler": "g++"}

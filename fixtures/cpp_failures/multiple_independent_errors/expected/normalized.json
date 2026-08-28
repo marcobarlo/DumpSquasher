@@ -1,0 +1,22 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "undeclared_identifier",
+    "message": "'MISSING_ONE' was not declared in this scope",
+    "location": {"file": "src/one.cpp", "line": 1, "column": 22},
+    "symbol": "MISSING_ONE",
+    "translation_unit": "src/one.cpp",
+    "role": "unknown"
+  },
+  {
+    "id": "D2",
+    "severity": "error",
+    "kind": "missing_member",
+    "message": "'struct Config' has no member named 'limit'",
+    "location": {"file": "src/two.cpp", "line": 3, "column": 35},
+    "symbol": "Config::limit",
+    "translation_unit": "src/two.cpp",
+    "role": "unknown"
+  }
+]

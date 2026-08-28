@@ -1,0 +1,9 @@
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -c src/one.cpp -o one.o
+src/one.cpp: In function ‘int first()’:
+src/one.cpp:1:22: error: ‘MISSING_ONE’ was not declared in this scope
+make: *** [Makefile:8: one.o] Error 1
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -c src/two.cpp -o two.o
+src/two.cpp: In function ‘int second()’:
+src/two.cpp:3:35: error: ‘struct Config’ has no member named ‘limit’
+make: *** [Makefile:11: two.o] Error 1
+make: Target 'all' not remade because of errors.

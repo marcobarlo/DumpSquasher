@@ -1,0 +1,1 @@
+{"name": "multiple_independent_errors", "build": ["make", "-k"], "compiler": "g++"}

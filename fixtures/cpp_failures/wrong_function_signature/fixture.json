@@ -1,0 +1,1 @@
+{"name": "wrong_function_signature", "build": ["make"], "compiler": "g++"}

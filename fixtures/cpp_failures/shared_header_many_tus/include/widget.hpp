@@ -1,0 +1,3 @@
+struct Widget {
+    int bar;
+};

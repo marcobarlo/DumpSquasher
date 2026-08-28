@@ -1,0 +1,23 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "concept_failure",
+    "message": "use of function 'T twice(T) [with T = double]' with unsatisfied constraints",
+    "location": {"file": "src/main.cpp", "line": 8, "column": 30},
+    "symbol": "twice",
+    "translation_unit": "src/main.cpp",
+    "notes": [
+      {"message": "declared here", "location": {"file": "src/main.cpp", "line": 4, "column": 3}},
+      {"message": "constraints not satisfied", "location": {"file": "src/main.cpp", "line": 4, "column": 3}},
+      {"message": "the expression 'is_integral_v<_Tp> [with _Tp = double]' evaluated to 'false'"}
+    ],
+    "template_instantiation_frames": [
+      {
+        "message": "T twice(T) [with T = double]",
+        "location": {"file": "src/main.cpp", "line": 8, "column": 30}
+      }
+    ],
+    "role": "unknown"
+  }
+]

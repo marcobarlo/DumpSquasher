@@ -1,0 +1,6 @@
+{
+  "cascaded_diagnostics": 0,
+  "build_system_messages": 3,
+  "duplicate_manifestations": 0,
+  "note": "two independent compiler errors must both remain visible"
+}

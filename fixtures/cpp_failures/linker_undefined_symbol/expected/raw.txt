@@ -1,0 +1,6 @@
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -c src/main.cpp -o main.o
+g++ main.o -o main
+/usr/bin/ld: main.o: in function `main':
+main.cpp:(.text+0x8): undefined reference to `never_defined()'
+collect2: error: ld returned 1 exit status
+make: *** [Makefile:7: all] Error 1

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "undeclared_identifier",
+    "message": "'NOT_DEFINED' was not declared in this scope",
+    "location": {"file": "broken.cpp", "line": 1, "column": 23},
+    "symbol": "NOT_DEFINED",
+    "confidence": 1.0,
+    "affected_translation_units": 1,
+    "collapsed_diagnostics": 2,
+    "evidence": ["recursive make Error 1 / Error 2 are build-system consequences"]
+  }
+]

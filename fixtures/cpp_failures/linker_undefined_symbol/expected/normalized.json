@@ -1,0 +1,12 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "linker_undefined_symbol",
+    "message": "undefined reference to `never_defined()'",
+    "location": {"file": "src/main.cpp", "line": 4, "column": 5},
+    "symbol": "never_defined()",
+    "translation_unit": "src/main.cpp",
+    "role": "unknown"
+  }
+]

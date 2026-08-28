@@ -1,0 +1,19 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "wrong_function_signature",
+    "message": "too few arguments to function 'int add(int, int)'",
+    "location": {"file": "src/main.cpp", "line": 3, "column": 26},
+    "symbol": "add",
+    "translation_unit": "src/main.cpp",
+    "notes": [
+      {
+        "message": "declared here",
+        "location": {"file": "src/main.cpp", "line": 1, "column": 5},
+        "kind": "declaration"
+      }
+    ],
+    "role": "unknown"
+  }
+]

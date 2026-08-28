@@ -1,0 +1,13 @@
+[
+  {
+    "id": "D1",
+    "severity": "fatal",
+    "kind": "missing_include",
+    "message": "missing.hpp: No such file or directory",
+    "location": {"file": "src/main.cpp", "line": 1, "column": 10},
+    "confidence": 1.0,
+    "affected_translation_units": 1,
+    "collapsed_diagnostics": 1,
+    "evidence": ["build-system consequence after compiler fatal"]
+  }
+]

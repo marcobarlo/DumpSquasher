@@ -1,0 +1,6 @@
+CXX ?= g++
+CXXFLAGS ?= -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -Iinclude
+
+.PHONY: all
+all:
+	$(CXX) $(CXXFLAGS) -c src/main.cpp -o main.o

@@ -1,0 +1,17 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "missing_member",
+    "message": "'struct Widget' has no member named 'foo'",
+    "location": {"file": "src/foo.cpp", "line": 3, "column": 32},
+    "symbol": "Widget::foo",
+    "confidence": 0.95,
+    "affected_translation_units": 3,
+    "collapsed_diagnostics": 6,
+    "evidence": [
+      "same symbol Widget::foo in three translation units",
+      "shared originating header include/widget.hpp"
+    ]
+  }
+]

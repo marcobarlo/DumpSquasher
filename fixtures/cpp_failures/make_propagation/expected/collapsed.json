@@ -1,0 +1,9 @@
+{
+  "cascaded_diagnostics": 0,
+  "build_system_messages": 2,
+  "duplicate_manifestations": 0,
+  "notes": [
+    "make[1]: *** [Makefile:6: all] Error 1",
+    "make: *** [Makefile:3: all] Error 2"
+  ]
+}

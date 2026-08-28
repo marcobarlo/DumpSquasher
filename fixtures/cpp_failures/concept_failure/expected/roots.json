@@ -1,0 +1,14 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "concept_failure",
+    "message": "use of function 'T twice(T) [with T = double]' with unsatisfied constraints",
+    "location": {"file": "src/main.cpp", "line": 8, "column": 30},
+    "symbol": "twice",
+    "confidence": 1.0,
+    "affected_translation_units": 1,
+    "collapsed_diagnostics": 1,
+    "evidence": ["constraint notes retained on the parent diagnostic"]
+  }
+]

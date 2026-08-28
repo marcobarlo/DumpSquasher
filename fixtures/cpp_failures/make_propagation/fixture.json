@@ -1,0 +1,1 @@
+{"name": "make_propagation", "build": ["make"], "compiler": "g++"}

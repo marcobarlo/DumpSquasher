@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.1.0/plugin.schema.json",
+  "name": "diagrun",
+  "version": "0.1.0",
+  "description": "Compact C++ build diagnostics: wrap cmake/ninja/make, return root failures plus a retrievable raw log.",
+  "license": "Apache-2.0",
+  "keywords": ["c++", "diagnostics", "build", "mcp"],
+  "extensions": {
+    "dev.pi.agent": {
+      "extension": "./dev.pi.agent/index.ts"
+    }
+  }
+}

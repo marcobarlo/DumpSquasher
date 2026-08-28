@@ -1,0 +1,13 @@
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -Iinclude -c src/foo.cpp -o foo.o
+src/foo.cpp: In function ‘int foo()’:
+src/foo.cpp:3:32: error: ‘struct Widget’ has no member named ‘foo’
+make: *** [Makefile:8: foo.o] Error 1
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -Iinclude -c src/bar.cpp -o bar.o
+src/bar.cpp: In function ‘int bar()’:
+src/bar.cpp:3:32: error: ‘struct Widget’ has no member named ‘foo’
+make: *** [Makefile:11: bar.o] Error 1
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -Iinclude -c src/baz.cpp -o baz.o
+src/baz.cpp: In function ‘int baz()’:
+src/baz.cpp:3:32: error: ‘struct Widget’ has no member named ‘foo’
+make: *** [Makefile:14: baz.o] Error 1
+make: Target 'all' not remade because of errors.

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "syntax_cascade",
+    "message": "expected primary-expression before ';' token",
+    "location": {"file": "src/main.cpp", "line": 2, "column": 13},
+    "translation_unit": "src/main.cpp",
+    "role": "unknown"
+  },
+  {
+    "id": "D2",
+    "severity": "error",
+    "kind": "missing_member",
+    "message": "request for member 'missing' in 'x', which is of non-class type 'int'",
+    "location": {"file": "src/main.cpp", "line": 3, "column": 14},
+    "translation_unit": "src/main.cpp",
+    "role": "unknown"
+  }
+]

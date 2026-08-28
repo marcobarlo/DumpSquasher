@@ -1,0 +1,11 @@
+[
+  {
+    "id": "D1",
+    "severity": "fatal",
+    "kind": "missing_include",
+    "message": "missing.hpp: No such file or directory",
+    "location": {"file": "src/main.cpp", "line": 1, "column": 10},
+    "translation_unit": "src/main.cpp",
+    "role": "unknown"
+  }
+]

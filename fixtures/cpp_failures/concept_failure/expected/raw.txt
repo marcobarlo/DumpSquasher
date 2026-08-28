@@ -1,0 +1,11 @@
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++20 -c src/main.cpp -o main.o
+src/main.cpp: In function ‘int main()’:
+src/main.cpp:8:30: error: use of function ‘T twice(T) [with T = double]’ with unsatisfied constraints
+src/main.cpp:4:3: note: declared here
+src/main.cpp:4:3: note: constraints not satisfied
+In file included from src/main.cpp:1:
+/usr/include/c++/10.3.1/concepts: In instantiation of ‘T twice(T) [with T = double]’:
+src/main.cpp:8:30:   required from here
+/usr/include/c++/10.3.1/concepts:102:13:   required for the satisfaction of ‘integral<T>’ [with T = double]
+/usr/include/c++/10.3.1/concepts:102:24: note: the expression ‘is_integral_v<_Tp> [with _Tp = double]’ evaluated to ‘false’
+make: *** [Makefile:6: all] Error 1

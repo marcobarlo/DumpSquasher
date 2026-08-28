@@ -1,0 +1,4 @@
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -c src/main.cpp -o main.o
+src/main.cpp:1:10: fatal error: missing.hpp: No such file or directory
+compilation terminated.
+make: *** [Makefile:6: all] Error 1

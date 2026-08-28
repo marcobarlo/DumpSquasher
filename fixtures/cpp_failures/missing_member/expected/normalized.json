@@ -1,0 +1,12 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "missing_member",
+    "message": "'struct Widget' has no member named 'foo'",
+    "location": {"file": "src/main.cpp", "line": 5, "column": 14},
+    "symbol": "Widget::foo",
+    "translation_unit": "src/main.cpp",
+    "role": "unknown"
+  }
+]

@@ -1,0 +1,5 @@
+g++ -fdiagnostics-color=never -fno-diagnostics-show-caret -std=c++17 -c src/main.cpp -o main.o
+src/main.cpp: In function ‘int main()’:
+src/main.cpp:3:26: error: too few arguments to function ‘int add(int, int)’
+src/main.cpp:1:5: note: declared here
+make: *** [Makefile:6: all] Error 1

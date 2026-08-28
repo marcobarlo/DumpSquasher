@@ -1,0 +1,14 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "template_instantiation",
+    "message": "request for member 'missing' in 'value', which is of non-class type 'int'",
+    "location": {"file": "src/main.cpp", "line": 3, "column": 18},
+    "symbol": "identity",
+    "confidence": 1.0,
+    "affected_translation_units": 1,
+    "collapsed_diagnostics": 1,
+    "evidence": ["template instantiation frames retained as evidence"]
+  }
+]

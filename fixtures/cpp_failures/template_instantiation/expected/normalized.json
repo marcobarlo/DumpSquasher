@@ -1,0 +1,18 @@
+[
+  {
+    "id": "D1",
+    "severity": "error",
+    "kind": "template_instantiation",
+    "message": "request for member 'missing' in 'value', which is of non-class type 'int'",
+    "location": {"file": "src/main.cpp", "line": 3, "column": 18},
+    "symbol": "identity",
+    "translation_unit": "src/main.cpp",
+    "template_instantiation_frames": [
+      {
+        "message": "T identity(T) [with T = int]",
+        "location": {"file": "src/main.cpp", "line": 6, "column": 31}
+      }
+    ],
+    "role": "unknown"
+  }
+]

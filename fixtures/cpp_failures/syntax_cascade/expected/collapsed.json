@@ -1,0 +1,6 @@
+{
+  "cascaded_diagnostics": 0,
+  "build_system_messages": 1,
+  "duplicate_manifestations": 0,
+  "note": "D2 is a likely consequence of D1 but is retained (prefer false negatives over dropping an independent failure)"
+}
