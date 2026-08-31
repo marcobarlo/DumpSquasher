@@ -17,9 +17,10 @@ TOOLS = [
         "name": "diagrun_build",
         "description": (
             "Run a C++ build (cmake/ninja/make/g++) through diagrun. "
-            "Returns compact status, run_id, and a raw-log reference instead of "
-            "dumping the full compiler log into context. Use diagrun_get_raw "
-            "only when you need the original output."
+            "Returns compact root diagnostics the model can act on. "
+            "Do not call diagrun_get_raw unless roots and unclassified are both empty. "
+            "If the result has \"no_progress\": true, your last edit did not change the "
+            "roots — stop rebuilding and re-inspect the diff instead of calling this again."
         ),
         "inputSchema": {
             "type": "object",
@@ -38,7 +39,10 @@ TOOLS = [
                 },
                 "collapse_parse_recovery": {
                     "type": "boolean",
-                    "description": "Hide likely syntax-recovery follow-ons (default false).",
+                    "description": (
+                        "Fold syntax-recovery follow-on errors into the causing root's "
+                        "evidence instead of listing them as separate roots (default true)."
+                    ),
                 },
             },
             "required": ["command"],
@@ -46,7 +50,10 @@ TOOLS = [
     },
     {
         "name": "diagrun_get_raw",
-        "description": "Retrieve stored raw build output for a diagrun run_id.",
+        "description": (
+            "Retrieve stored raw build output. Call only when diagrun_build returned "
+            "empty roots and empty unclassified."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -156,7 +163,7 @@ def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
     try:
         value = dispatch(op, arguments)
         return {
-            "content": [{"type": "text", "text": json.dumps(value, indent=2)}],
+            "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False, separators=(",", ":"))}],
             "isError": False,
             "structuredContent": value,
         }

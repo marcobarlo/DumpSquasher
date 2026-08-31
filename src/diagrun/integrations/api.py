@@ -8,9 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence, Union
 
-from diagrun.config import DiagrunConfig
+from diagrun.config import DiagrunConfig, env_bool
 from diagrun.diagnostics.model import raw_ref
 from diagrun.exec.runner import run_command
+from diagrun.reducer.pipeline import check_progress, persist_diagnostics
+from diagrun.render.json import agent_payload, dumps_compact
 from diagrun.store.runs import RunNotFoundError, RunStore
 
 CommandArg = Union[str, Sequence[str]]
@@ -44,10 +46,17 @@ def tool_build(
 ) -> dict[str, Any]:
     """Run a build through diagrun and return compact agent JSON.
 
-    Live compiler output is captured, not forwarded. Use ``tool_get_raw``
-    for the full log. Parsed root diagnostics are included when present.
+    Live compiler output is captured, not forwarded. Root diagnostics are
+    included so the agent can fix the build without calling ``get_raw``.
+
+    Unlike the plain CLI, ``collapse_parse_recovery`` defaults to ``True``
+    here (plan.md §1.2 rule 6): agents were paying for the same
+    parse-recovery cascade as an independent root on every retry after a
+    botched edit, which is exactly the loop this tool exists to shorten.
     """
     argv = parse_command(command)
+    if collapse_parse_recovery is None:
+        collapse_parse_recovery = env_bool("DIAGRUN_COLLAPSE_PARSE_RECOVERY", True, env)
     config = DiagrunConfig.resolve(
         inject_diagnostics=inject_diagnostics,
         collapse_parse_recovery=collapse_parse_recovery,
@@ -62,37 +71,9 @@ def tool_build(
         passthrough=False,
         config=config,
     )
-    meta = store.load_meta(captured.id)
-    diag_path = store.run_dir(captured.id) / "diagnostics.json"
-    diagnostics: Optional[dict[str, Any]] = None
-    if diag_path.is_file():
-        diagnostics = json.loads(diag_path.read_text(encoding="utf-8"))
-    status = "passed" if captured.exit_code == 0 else "failed"
-    result: dict[str, Any] = {
-        "status": status,
-        "command": " ".join(shlex.quote(part) for part in argv),
-        "argv": list(argv),
-        "exit_code": captured.exit_code,
-        "cwd": captured.cwd,
-        "run_id": captured.id,
-        "raw": {
-            "ref": raw_ref(captured.id),
-            "bytes": captured.stdout_bytes + captured.stderr_bytes,
-            "stdout_bytes": captured.stdout_bytes,
-            "stderr_bytes": captured.stderr_bytes,
-        },
-        "inject": meta.get("inject"),
-        "reducer": meta.get("reducer"),
-    }
-    if diagnostics is not None:
-        result["diagnostics"] = diagnostics
-    else:
-        result["diagnostics"] = None
-        result["hint"] = (
-            "Full compiler output is at raw.ref; retrieve with diagrun_get_raw. "
-            "Normalized root diagnostics appear here once GCC/Clang parsers run."
-        )
-    return result
+    reduced = persist_diagnostics(store, captured)
+    progressed = check_progress(store, captured.cwd, reduced)
+    return agent_payload(reduced, captured.id, no_progress=not progressed)
 
 
 def tool_get_raw(
@@ -223,13 +204,10 @@ def call_main(argv: Sequence[str]) -> int:
     try:
         result = dispatch(op, params)
     except RunNotFoundError as exc:
-        json.dump({"ok": False, "error": "not_found", "message": str(exc)}, sys.stdout)
-        sys.stdout.write("\n")
+        sys.stdout.write(dumps_compact({"ok": False, "error": "not_found", "message": str(exc)}) + "\n")
         return 2
     except (ValueError, KeyError, TypeError) as exc:
-        json.dump({"ok": False, "error": "invalid_params", "message": str(exc)}, sys.stdout)
-        sys.stdout.write("\n")
+        sys.stdout.write(dumps_compact({"ok": False, "error": "invalid_params", "message": str(exc)}) + "\n")
         return 2
-    json.dump({"ok": True, "result": result}, sys.stdout)
-    sys.stdout.write("\n")
+    sys.stdout.write(dumps_compact({"ok": True, "result": result}) + "\n")
     return 0

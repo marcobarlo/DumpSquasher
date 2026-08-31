@@ -65,7 +65,7 @@ async function run(
     };
   }
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(payload.result, null, 2) }],
+    content: [{ type: "text" as const, text: JSON.stringify(payload.result) }],
     details: payload.result,
   };
 }
@@ -75,17 +75,23 @@ export default function (pi: ExtensionAPI) {
     name: "diagrun_build",
     label: "Diagrun build",
     description:
-      "Run a C++ build through diagrun. Returns compact status, run_id, and a raw-log reference instead of the full compiler dump. Prefer this over bash for cmake/ninja/make/g++ failures.",
-    promptSnippet: "diagrun_build: wrap C++ builds; compact diagnostics, raw log on request",
+      "Run a C++ build through diagrun. Returns compact root diagnostics the model can act on. Prefer this over bash. Call diagrun_get_raw only if roots and unclassified are both empty. If the result has no_progress: true, your last edit did not change the roots -- stop rebuilding and re-check the diff instead of calling this again.",
+    promptSnippet: "diagrun_build: wrap C++ builds; act on roots; do not fetch the raw log unless roots are empty; stop retrying on no_progress",
     promptGuidelines: [
       "Use diagrun_build for C++ compile/link commands instead of bash.",
-      "Do not paste the full compiler log unless diagrun_get_raw is needed.",
+      "Read roots[].message, roots[].location, and roots[].snippet. Do not call diagrun_get_raw when roots is non-empty.",
+      "If the result has no_progress: true, do not call diagrun_build again immediately -- re-read the file you just edited first.",
     ],
     parameters: Type.Object({
       command: Type.String({ description: 'Build command, e.g. "cmake --build build"' }),
       cwd: Type.Optional(Type.String({ description: "Working directory" })),
       inject_diagnostics: Type.Optional(Type.Boolean()),
-      collapse_parse_recovery: Type.Optional(Type.Boolean()),
+      collapse_parse_recovery: Type.Optional(
+        Type.Boolean({
+          description:
+            "Fold syntax-recovery follow-on errors into the causing root's evidence instead of listing them as separate roots (default true).",
+        }),
+      ),
     }),
     async execute(_id, params, signal) {
       return run("build", params as Record<string, unknown>, signal);

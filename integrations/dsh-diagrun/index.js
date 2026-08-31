@@ -5,7 +5,7 @@ export const name = 'dsh-diagrun'
 export const inject = ['tools']
 
 function renderJson(_args, value) {
-  return [{ type: 'text', text: JSON.stringify(value, null, 2) }]
+  return [{ type: 'text', text: JSON.stringify(value) }]
 }
 
 const objectOut = {
@@ -27,7 +27,7 @@ export function apply(ctx) {
     defineTool({
       name: 'diagrun_build',
       description:
-        'Run a C++ build through diagrun and return compact status plus a raw-log reference. Prefer this over bash/make for failed C++ builds.',
+        'Run a C++ build through diagrun. Returns compact root diagnostics (file/line/message). Act on roots; call diagrun_get_raw only if roots and unclassified are both empty. If the result has no_progress: true, your last edit did not change the roots -- stop rebuilding and re-check the diff instead of calling this again.',
       parameters: {
         command: {
           type: 'string',
@@ -41,7 +41,8 @@ export function apply(ctx) {
         },
         collapse_parse_recovery: {
           type: 'boolean',
-          description: 'Hide likely syntax-recovery follow-on errors (default false).',
+          description:
+            'Fold syntax-recovery follow-on errors into the causing root\'s evidence instead of listing them as separate roots (default true).',
         },
       },
       output: objectOut,
@@ -56,7 +57,8 @@ export function apply(ctx) {
   ctx.tools.register(
     defineTool({
       name: 'diagrun_get_raw',
-      description: 'Retrieve stored raw compiler/build output for a diagrun run_id.',
+      description:
+        'Retrieve stored raw compiler/build output. Use only when diagrun_build returned no roots.',
       parameters: {
         run_id: { type: 'string', description: 'Run id; omit to use the last run.' },
         offset: { type: 'number', description: 'Byte offset.' },

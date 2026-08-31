@@ -65,6 +65,7 @@ class DiagnosticKind:
     TEMPLATE_INSTANTIATION = "template_instantiation"
     CONCEPT_FAILURE = "concept_failure"
     SYNTAX_CASCADE = "syntax_cascade"
+    REDECLARATION = "redeclaration"
     LINKER_UNDEFINED_SYMBOL = "linker_undefined_symbol"
     GENERATED_HEADER_MISSING = "generated_header_missing"
     UNKNOWN = "unknown"
@@ -218,6 +219,7 @@ class Diagnostic:
     template_instantiation_frames: list[TemplateFrame] = field(default_factory=list)
     role: Role = Role.UNKNOWN
     confidence: float = 1.0
+    snippet: Optional[str] = None
 
     def __post_init__(self) -> None:
         _require_non_empty("id", self.id)
@@ -242,6 +244,7 @@ class Diagnostic:
             "message": self.message,
             "location": self.location.to_dict() if self.location else None,
             "symbol": self.symbol,
+            "snippet": self.snippet,
         }
         if compact:
             return _omit_empty(data)
@@ -281,6 +284,7 @@ class Diagnostic:
             template_instantiation_frames=[TemplateFrame.from_dict(item) for item in frames],
             role=Role(data["role"]) if data.get("role") else Role.UNKNOWN,
             confidence=float(data["confidence"]) if data.get("confidence") is not None else 1.0,
+            snippet=str(data["snippet"]) if data.get("snippet") else None,
         )
 
 

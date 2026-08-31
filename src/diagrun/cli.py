@@ -10,6 +10,7 @@ from typing import Optional, Sequence
 
 from diagrun.config import DiagrunConfig
 from diagrun.exec.runner import run_command
+from diagrun.reducer.pipeline import persist_diagnostics
 from diagrun.store.runs import RunNotFoundError, RunStore
 
 USAGE = """\
@@ -95,6 +96,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         collapse_parse_recovery=parsed.collapse_parse_recovery,
     )
     captured = run_command(parsed.rest, store, passthrough=True, config=config)
+    persist_diagnostics(store, captured)
     return captured.exit_code
 
 

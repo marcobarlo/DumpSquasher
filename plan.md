@@ -36,6 +36,115 @@ The core product promise is:
 
 The first version should target **C++ with GCC/Clang and CMake/Ninja/Make**. Do not start with arbitrary shell commands.
 
+## 1.1 Context budget (non-negotiable)
+
+The agent-facing `diagrun_build` result exists to **shrink** what the model must read, not to wrap the same transcript in JSON.
+
+Measured failure (2026-08-28, DSH A/B on `missing_member`):
+
+| Payload | Bytes | What the model could use |
+|---------|-------|--------------------------|
+| bash `make` dump | 284 | the actual error |
+| `diagrun_build` with `diagnostics: null` + inject/hint (pretty-printed) | 774 | a pointer, not a diagnosis |
+| `diagrun_get_raw` wrapping the 457 B log | 705 | the log again |
+
+The envelope plus an instructed `get_raw` **grew** context. That is a product bug.
+
+Rules for the agent JSON:
+
+1. When `roots` is non-empty, the build result **must** include those roots and **must not** hint the model to call `diagrun_get_raw`.
+2. Encode compactly (`separators=(",", ":")`, no pretty-print). Omit `inject`, `reducer`, `argv`, `cwd`, `diagnostics: null`, and fetch-the-log hints.
+3. Whenever `raw.bytes >= 512`, compact result size **must** be smaller than the raw log. On tiny logs, the win is “roots without `get_raw`”, even if the envelope is similar in size to the dump.
+4. Tool descriptions must say: act on `roots`; call `get_raw` only if both `roots` and `unclassified` are empty.
+
+Until parsers fill `roots`, the tool is a store, not a reducer, and will lose to `bash make` on small fixtures.
+
+## 1.2 Root cause of the *session-level* bloat (2026-08-28 re-run)
+
+Task 11–12 made every individual `diagrun_build` payload compact (avg 624 B
+across the run below). The session was still bigger with the tool than
+without it. Per-call compactness was never the problem; **call volume** was.
+
+Session evidence (`~/.dsh/sessions/.../session-14015fee...` = tool on,
+`.../session-5d875682...` = tool off, same fixture, same model):
+
+| | Tool on | Tool off |
+|--|---------|----------|
+| Tool calls | 67 (44 `edit`, 19 `diagrun_build`, 4 `read`) | 18 (6 `edit`, 6 `bash`, 3 `read`, 3 `glob`) |
+| Total tool-result bytes | 41,839 | 9,386 |
+| Avg `diagrun_build` result | 624 B (below the 774 B pretty-printed baseline) | n/a |
+| Outcome | DSH auto-**compacted** the transcript mid-turn (context overflow) | converged normally |
+
+So the tool-on session made **~4.5x more round trips** to fix the same bug,
+and each round trip — even though individually small — adds up. Reading the
+actual `diagrun_build` call/result pairs shows why:
+
+```text
+call 3: roots=[D1 syntax_cascade "expected declaration before '}' token" @widget.hpp:6:1,
+              D2 wrong_function_signature ... @main.cpp:5:14]
+call 4: roots=[D1 syntax_cascade "expected declaration before '}' token" @widget.hpp:6:1,   <- identical to call 3
+              D2 wrong_function_signature ... @main.cpp:5:14]                                 <- identical to call 3
+call 5: roots=[D1 syntax_cascade ... same location,
+              D2 wrong_function_signature ... slight variant]
+call 6: roots=[D1 syntax_cascade ... same location,
+              D2 kind:"unknown" "invalid conversion from 'int (*)()' to 'int'"]
+```
+
+Three concrete product bugs, not one:
+
+1. **No source snippet.** `Diagnostic`/`DiagnosticGroup` never capture the
+   2–4 lines of source around a location (`model.py` has no `snippet`
+   field). A raw `g++`/`make` dump shows the duplicated `int bar; };` tail
+   for free; the structured root only says
+   `"expected declaration before '}' token" @widget.hpp:6:1`. That is not
+   enough for a small model to see *why*, so it edits blindly and rebuilds
+   to find out — the exact loop the tool exists to prevent.
+2. **`collapse_parse_recovery` defaults to `false` and nothing sets it.**
+   `syntax_cascade` exists precisely to mark "this diagnostic is a
+   downstream artifact of an earlier bad edit," but with the default off it
+   is reported as a first-class root every call, identical across calls 3–6,
+   contributing zero new information while still costing bytes and a full
+   round trip each time.
+3. **Classification gaps feed `kind: "unknown"`.** `textutil.classify_kind`
+   has no pattern for `redeclaration of ...` or `invalid conversion from
+   ... to ...` — exactly the diagnostics produced by a self-inflicted
+   duplicate-brace edit. `unknown` roots carry no `symbol`, so the model gets
+   *less* signal than the equivalent line in a raw dump would have given.
+
+None of task 5–12's "compact JSON" work fixes this, because the missing
+information isn't a rendering problem — it's missing at the parser/reducer
+stage. Compact + uninformative still loses to verbose + informative when the
+model needs 4 extra round trips to make up for it.
+
+### Fix rules (supersede nothing above; add to it)
+
+5. Every `Diagnostic` carries a bounded `snippet` (≤3 source lines, ≤160
+   bytes total, from the file already read off disk — free relative to a
+   `get_raw` round trip) so structural mistakes (duplicated braces, stray
+   tokens) are visible without another build.
+6. `collapse_parse_recovery` defaults to `true` for the **agent-facing**
+   path (`tool_build`/MCP/DSH/Pi), stays `false` for the plain CLI. A
+   collapsed cascade is not just hidden — it is folded into the causing
+   root's `evidence` as `"N parse-recovery diagnostics after this location"`.
+7. `diagrun_build` **must** detect a repeated root: if the fingerprint set
+   of `roots` is unchanged from the same `cwd`'s previous run, add
+   `"no_progress": true` and a one-line `"your last edit did not change
+   this diagnostic"` instead of silently returning what looks like a fresh
+   payload. This is what should have broken the calls-3-through-6 loop.
+8. Extend `textutil.classify_kind`/`extract_symbol` to cover `redeclaration
+   of ...`, `invalid conversion from ... to ...`, and `cannot convert ...
+   from type ... to type ...` so these do not fall through to `unknown`.
+9. Tool descriptions and integration prompts (`mcp_server.py`,
+   `dsh-diagrun/index.js`, `pi.agent/index.ts`) must tell the agent to pass
+   `collapse_parse_recovery: true` and to stop rebuilding once
+   `no_progress` is seen, rather than only documenting `roots` vs
+   `get_raw`.
+
+Measure success the same way this bug was found: compare **total
+tool-result bytes and call count for the full session**, not the size of
+one payload. A tool that returns a smaller JSON but needs 4x the round
+trips has not shrunk context.
+
 ---
 
 # 2. Product boundary
@@ -1162,17 +1271,23 @@ Start with these concrete tasks:
 | 2 | Implement process capture with stable run IDs. | **Tested — passed** |
 | 3 | Create the raw-output store and retrieval command. | **Tested — passed** |
 | 4 | Build 10 minimal failing C++ fixtures. | **Ready for Testing** |
-| 5 | Implement Clang diagnostic parsing. | Open |
-| 6 | Implement GCC diagnostic parsing. | Open |
-| 7 | Attach compiler notes to parent errors. | Open |
-| 8 | Parse and suppress Make/Ninja consequence messages. | Open |
-| 9 | Add exact diagnostic fingerprinting. | Open |
-| 10 | Add same-location/same-symbol cross-TU grouping. | Open |
-| 11 | Render compact text and JSON. | Open |
-| 12 | Instrument token/byte reduction metrics. | Open |
+| 5 | Implement Clang diagnostic parsing. | **Tested — passed** |
+| 6 | Implement GCC diagnostic parsing. | **Tested — passed** |
+| 7 | Attach compiler notes to parent errors. | **Tested — passed** |
+| 8 | Parse and suppress Make/Ninja consequence messages. | **Tested — passed** |
+| 9 | Add exact diagnostic fingerprinting. | **Tested — passed** |
+| 10 | Add same-location/same-symbol cross-TU grouping. | **Tested — passed** |
+| 11 | Render compact agent JSON (roots, no pretty-print, no get_raw hint). | **Tested — passed** |
+| 12 | Instrument token/byte reduction metrics; assert compact < raw when raw ≥ 512 B. | **Tested — passed** |
 | 13 | Run the prototype on several real C++ repositories. | Open |
 | 14 | Record cases where the reducer returns too much or hides too much. | Open |
 | 15 | Use those failures to design the first dependency-graph rules. | Open |
+| 16 | Add bounded source `snippet` to `Diagnostic` (§1.2 rule 5). | **Tested — passed** |
+| 17 | Default `collapse_parse_recovery=true` on the agent path; fold cascades into `evidence` instead of dropping them silently (§1.2 rule 6). | **Tested — passed** |
+| 18 | Detect repeated root fingerprints across consecutive `diagrun_build` calls in the same `cwd`/store; return `no_progress` + explanatory line (§1.2 rule 7). | **Tested — passed** |
+| 19 | Extend `classify_kind`/`extract_symbol` for `redeclaration of`, `invalid conversion from ... to ...`, `cannot convert ... from type ... to type ...` (§1.2 rule 8). | **Tested — passed** |
+| 20 | Update MCP/DSH/Pi tool descriptions and prompts to require `collapse_parse_recovery: true` and to stop on `no_progress` (§1.2 rule 9). | **Tested — passed** |
+| 21 | Re-run the DSH A/B headless test; assert full-session tool-result bytes and call count are lower with the tool than without, not just per-call payload size. | Open |
 
 Task 1 implementation: `src/diagrun/diagnostics/model.py`. Tests: `tests/test_model.py`, `tests/test_task1_model.py`.
 
@@ -1198,6 +1313,10 @@ diagrun [--inject-diagnostics|--no-inject-diagnostics]
 
 `PYTHONPATH=src python3 -m unittest discover -s tests -v`
 
+Context-budget implementation (tasks 5–12): `src/diagrun/diagnostics/compiler.py` (GCC/Clang JSON + text), `src/diagrun/diagnostics/buildsys.py`, `src/diagrun/reducer/pipeline.py`, `src/diagrun/render/json.py`. Agent `diagrun_build` returns `BuildResult` compact JSON with `roots` populated; pretty-print and fetch-hints are forbidden when roots exist.
+
+Session-bloat root-cause fix (tasks 16–20, §1.2): `src/diagrun/diagnostics/snippet.py` (new — bounded source-context reader), `src/diagrun/diagnostics/textutil.py` (`redeclaration`/`invalid conversion` patterns), `src/diagrun/diagnostics/model.py` (`Diagnostic.snippet`, `DiagnosticKind.REDECLARATION`), `src/diagrun/reducer/pipeline.py` (`attach_snippets`, cascade evidence folding, `check_progress`/`progress_by_cwd.json`), `src/diagrun/integrations/api.py` (`collapse_parse_recovery` defaults `true` on `tool_build`, `no_progress` wiring), `src/diagrun/render/json.py` (`agent_payload(..., no_progress=...)`), `src/diagrun/integrations/mcp_server.py`, `integrations/dsh-diagrun/index.js`, `plugins/diagrun/dev.pi.agent/index.ts` (tool descriptions/prompts). Tests: `tests/test_context_bloat_fix.py`.
+
 ### Tester log — Task 1 (2026-08-28)
 
 Retest after `_validate_ids` included member ids: `test_unclassified_id_must_not_collide_with_member_id` now **passes**. Task 1 model tests: **all passed**.
@@ -1213,6 +1332,13 @@ Retest after `_validate_ids` included member ids: `test_unclassified_id_must_not
 **Failure:** `fixtures/cpp_failures/linker_undefined_symbol/expected/roots.json` root `D1` has no `location`. Captured raw includes `main.cpp:(.text+0x8): undefined reference to \`never_defined()'\`. Plan §19 requires preserving exact source locations.
 
 Fix applied: `location` is `src/main.cpp:4:5` (call site of `never_defined()`). Re-mark Task 4 **Ready for Testing**.
+
+### Tester log — Tasks 16–20, session-bloat root cause (2026-08-28)
+
+`PYTHONPATH=src python3 -m unittest discover -s tests -v` → **172 passed** (164 prior + 8 new in `tests/test_context_bloat_fix.py`).
+
+End-to-end repro of the actual DSH failure (fresh fixture, real `g++`/`make`, no session replay): a botched edit that duplicates a struct's closing brace at `include/widget.hpp:6` now returns
+`"snippet": "    int bar;\n};"` on the `syntax_cascade` root — the duplicate is visible without a `get_raw` round trip. Rebuilding again with no further edit returns `"no_progress": true` and a hint instead of a fourth silent-looking payload. This is the exact call-3-through-6 loop from the session log; both new signals target it directly.
 
 The key implementation principle is:
 

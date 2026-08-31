@@ -1,0 +1,4 @@
+cases/
+logs/
+run.log
+__pycache__/

@@ -34,9 +34,16 @@ diagrun tool  ──spawn──►  make / ninja / g++
 run store  (~/.local/share/diagrun/runs/<ULID>/)
 ```
 
-Until GCC/Clang parsers land, `diagnostics` in the tool result is `null` and
-the compact payload still includes `raw.ref` plus a hint to call
-`diagrun_get_raw` for the transcript.
+`diagrun_build` returns compact **roots** (file, line, message, kind). Call
+`diagrun_get_raw` only when both `roots` and `unclassified` are empty.
+Encode agent JSON without pretty-print. Omit inject/reducer/hint-to-fetch.
+
+What landed in model context (DSH A/B on LMCache-Ascend `cache_kernels_host_stub_obj`):
+
+![What entered model context with vs without diagrun_build](context-with-vs-without.png)
+
+Sessions and how to reproduce: [DSH headless A/B](dsh-headless-example.md).
+Regenerate the figure with `docs/plot_context_ab.py`.
 
 ## Two entry points
 
@@ -91,6 +98,10 @@ src/diagrun/
   config.py              inject / collapse-parse-recovery
   ids.py                 ULID run ids
   diagnostics/model.py   Diagnostic, DiagnosticGroup, BuildResult
+  diagnostics/compiler.py GCC/Clang JSON + text
+  diagnostics/buildsys.py Make/Ninja/collect2 suppression
+  reducer/pipeline.py    fingerprint, group, persist diagnostics.json
+  render/json.py         compact agent payload (no pretty-print)
   exec/runner.py         spawn + capture
   exec/capture.py        independent stdout/stderr + events.jsonl
   exec/inject.py         compiler/Make/CMake/Ninja flag injection
@@ -157,9 +168,8 @@ the process that actually builds.
 
 ## What is not wired yet
 
-Plan tasks 5–11 (Clang/GCC parsers, notes, Make/Ninja suppression,
-fingerprinting, grouping, compact renderer) are still open. Capture, store,
-injection, and the agent tool API are implemented. Until parsers write
-`diagnostics.json`, agents should treat `raw.ref` as the source of truth
-and fetch slices with `diagrun_get_raw` instead of stuffing the full log
-into the next prompt.
+Plan tasks 13–15 (real-repo corpus, over/under-reduction log, first
+dependency-graph rule pack beyond fingerprint grouping) are still open.
+Parsers, Make/Ninja suppression, grouping, and compact agent JSON are
+implemented. Agents should act on `roots` and call `diagrun_get_raw` only
+when that list is empty.
