@@ -130,6 +130,15 @@ def _last_results(events: Iterable[dict]) -> Tuple[Dict[str, str], List[Tuple[st
     return calls, ordered
 
 
+def is_compact_payload(payload: Optional[dict]) -> bool:
+    """True when a tool result is a diagrun agent payload (roots JSON)."""
+    if not payload:
+        return False
+    return "status" in payload and "exit_code" in payload and (
+        "roots" in payload or "run_id" in payload
+    )
+
+
 def _parse_json_blob(text: str) -> Optional[dict]:
     blob = text.strip()
     if not blob:
@@ -146,6 +155,56 @@ def _parse_json_blob(text: str) -> Optional[dict]:
         except json.JSONDecodeError:
             return None
     return payload if isinstance(payload, dict) else None
+
+
+def classify_result(name: str, text: str) -> str:
+    """Bucket a tool result: compact roots JSON, compiler dump, or other."""
+    n = (name or "").lower()
+    if n in ("diagrun_build", "bash") and is_compact_payload(_parse_json_blob(text)):
+        return "compact"
+    if n == "bash":
+        return "dump"
+    if n in ("edit", "write"):
+        return "edit"
+    if n == "read":
+        return "read"
+    return "other"
+
+
+def split_tool_words(events: List[dict]) -> Dict[str, Any]:
+    """Word counts by tool-result class (last payload per callId)."""
+    _calls, ordered = _last_results(events)
+    buckets = {"compact": 0, "dump": 0, "edit": 0, "read": 0, "other": 0}
+    first_build_kind: Optional[str] = None
+    first_build_words = 0
+    first_build_bytes = 0
+    n_compact = 0
+    n_dump = 0
+    for _cid, name, text in ordered:
+        kind = classify_result(name, text)
+        w = words(text)
+        buckets[kind] = buckets.get(kind, 0) + w
+        if kind == "compact":
+            n_compact += 1
+        elif kind == "dump":
+            n_dump += 1
+        if first_build_kind is None and kind in ("compact", "dump"):
+            first_build_kind = kind
+            first_build_words = w
+            first_build_bytes = len(text.encode("utf-8"))
+    return {
+        "compact_words": buckets["compact"],
+        "dump_words": buckets["dump"],
+        "edit_words": buckets["edit"],
+        "read_words": buckets["read"],
+        "other_tool_words": buckets["other"],
+        "build_words": buckets["compact"] + buckets["dump"],
+        "n_compact": n_compact,
+        "n_dump": n_dump,
+        "first_build_kind": first_build_kind,
+        "first_build_words": first_build_words,
+        "first_build_bytes": first_build_bytes,
+    }
 
 
 def measure_events(events: List[dict]) -> Dict[str, Any]:
@@ -181,17 +240,19 @@ def measure_events(events: List[dict]) -> Dict[str, Any]:
             policy_text = text
             saw_policy = True
 
-    calls, ordered = _last_results(events)
+    _calls, ordered = _last_results(events)
     n_diagrun = 0
     n_bash = 0
     n_edit = 0
     n_read = 0
     n_write = 0
-    for name in calls.values():
+    for _cid, name, text in ordered:
         if name == "diagrun_build":
             n_diagrun += 1
         elif name == "bash":
             n_bash += 1
+            if is_compact_payload(_parse_json_blob(text)):
+                n_diagrun += 1
         elif name == "edit":
             n_edit += 1
         elif name == "write":
@@ -205,7 +266,7 @@ def measure_events(events: List[dict]) -> Dict[str, Any]:
     prune = False
     for _cid, name, text in ordered:
         lower = text.lower()
-        if name == "bash":
+        if name == "bash" and not is_compact_payload(_parse_json_blob(text)):
             if any(m in lower for m in SPILL_MARKERS):
                 spill = True
             if any(m in lower for m in PRUNE_MARKERS):
@@ -216,17 +277,17 @@ def measure_events(events: List[dict]) -> Dict[str, Any]:
     first_raw_bytes: Optional[int] = None
     first_compact_status: Optional[str] = None
     for _cid, name, text in ordered:
-        if name != "diagrun_build":
+        if name not in ("diagrun_build", "bash"):
             continue
         payload = _parse_json_blob(text)
-        if payload is None:
+        if not is_compact_payload(payload):
             continue
         first_compact = payload
         first_compact_status = payload.get("status")
-        raw = payload.get("raw") or {}
+        raw = (payload or {}).get("raw") or {}
         if isinstance(raw, dict):
             first_raw_bytes = raw.get("bytes")
-        roots = payload.get("roots") or []
+        roots = (payload or {}).get("roots") or []
         if isinstance(roots, list):
             first_root_kinds = [
                 str(r.get("kind") or "")

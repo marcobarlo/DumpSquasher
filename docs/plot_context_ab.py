@@ -102,6 +102,8 @@ def _classify_tool(name: str, text: str) -> str:
     if n in ("write", "edit"):
         return "sandbox" if "sandbox" in tl else "edit"
     if n == "bash":
+        if '"run_id"' in text and '"roots"' in text and '"status"' in text:
+            return "compact"
         if "sandbox" in tl or "refusing" in tl or "approval" in tl:
             return "sandbox"
         if any(

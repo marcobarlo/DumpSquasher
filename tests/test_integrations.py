@@ -146,6 +146,11 @@ class PluginManifestTests(unittest.TestCase):
         pkg = json.loads((ROOT / "integrations" / "dsh-diagrun" / "package.json").read_text())
         self.assertEqual(pkg["dsh"]["bundle"]["patch"], "./cordis.patch.yml")
         self.assertTrue((ROOT / "integrations" / "dsh-diagrun" / "index.js").is_file())
+        self.assertTrue((ROOT / "integrations" / "dsh-diagrun" / "wrap.mjs").is_file())
+        self.assertIn("wrap.mjs", pkg["files"])
+        index = (ROOT / "integrations" / "dsh-diagrun" / "index.js").read_text(encoding="utf-8")
+        self.assertIn("tools/execute", index)
+        self.assertNotIn("defineTool", index)
         self.assertTrue((ROOT / "plugins" / "diagrun" / "dev.pi.agent" / "index.ts").is_file())
 
 

@@ -26,15 +26,21 @@ Unknowns stay visible. Prefer a false negative on collapse (leave a noisy
 follow-on) over hiding a real fault. `--collapse-parse-recovery` is **off**
 by default for that reason.
 
-## Wrapper, not interceptor
+## Wrapper, not interceptor (CLI); DSH bash wrap (agents)
 
 - Humans: `diagrun -- make` looks like the original command (live streams,
   original exit code, no extra summary line).
-- Agents: named tools (`diagrun_build`, …). The model must choose them.
-  diagrun does not monkey-patch `bash`.
+- Agents (MCP / Pi): named tools (`diagrun_build`, …). The model must choose
+  them.
+- DeepSeek Harness: `dsh-diagrun` intercepts **pure** `bash` compile/link
+  (`make` / `ninja` / `cmake --build` / `g++` / `clang++`) via `tools/execute`
+  and returns compact roots through the existing `bash` tool. No extra schemas.
+  Combinators, `make test`/`clean`, `cmake` configure, and `run_in_background`
+  pass through to stock bash.
 
-Prefer `diagrun_build` over `bash` for C++ compile/link. Do not paste the
-full compiler log unless `diagrun_get_raw` is needed.
+Prefer compact roots over a compiler dump. Do not paste the full compiler
+log unless `diagrun_get_raw` is needed (MCP/Pi) or roots and unclassified
+are both empty.
 
 ## Capture fidelity
 

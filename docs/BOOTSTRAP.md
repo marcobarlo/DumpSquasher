@@ -8,7 +8,7 @@ vLLM. Do **not** use NPUs 4–7. Do **not** mutate LMCache-Ascend.
 
 Implement and run the 300-case A/B in
 [docs/ab300-plan.md](ab300-plan.md) (same as Cursor plan
-`300-case A/B harness`). Always run **both arms** (with `diagrun_build` and
+`300-case A/B harness`). Always run **both arms** (with bash wrap and
 without). Checkpoint. Plot a **new** figure `docs/ab300-fix-and-context.png`.
 
 Do not overwrite `docs/context-with-vs-without.png`.

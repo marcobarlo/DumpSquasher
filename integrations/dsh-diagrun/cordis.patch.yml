@@ -3,3 +3,4 @@
       name: dsh-diagrun
       inject:
         - tools
+        - systemPrompt

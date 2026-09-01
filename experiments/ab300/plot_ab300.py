@@ -92,7 +92,7 @@ def plot(rows: List[Dict[str, Any]], out: Path) -> None:
     )
     fig, axes = plt.subplots(2, 2, figsize=(12.5, 9.2), dpi=160)
     fig.subplots_adjust(left=0.08, right=0.98, top=0.88, bottom=0.10, wspace=0.28, hspace=0.42)
-    fig.suptitle("300-case DSH A/B  ·  diagrun_build vs stock bash", fontsize=15, fontweight="bold", y=0.98)
+    fig.suptitle("300-case DSH A/B  ·  bash wrap vs stock bash", fontsize=15, fontweight="bold", y=0.98)
     fig.text(
         0.5,
         0.93,
@@ -110,7 +110,7 @@ def plot(rows: List[Dict[str, Any]], out: Path) -> None:
     w = 0.38
     a_vals = [_rate(rows, "kind", k, "with")[0] * 100 for k in kinds]
     b_vals = [_rate(rows, "kind", k, "without")[0] * 100 for k in kinds]
-    ax.bar(x - w / 2, np.nan_to_num(a_vals), w, color=C_WITH, edgecolor=EDGE, label="with diagrun_build")
+    ax.bar(x - w / 2, np.nan_to_num(a_vals), w, color=C_WITH, edgecolor=EDGE, label="with wrap")
     ax.bar(x + w / 2, np.nan_to_num(b_vals), w, color=C_WITHOUT, edgecolor=EDGE, label="without (bash)")
     ax.set_ylim(0, 105)
     ax.set_ylabel("fix rate (%)")

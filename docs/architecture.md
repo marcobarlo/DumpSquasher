@@ -10,14 +10,13 @@ and a pointer to the raw log.
 It is **not**:
 
 - a proxy that intercepts the model's HTTP/OpenAI traffic
-- a sidecar that wraps every `bash` call automatically
+- a wrap of every `bash` call (DSH intercepts only pure compile/link)
 - an LLM that summarizes compiler output
 
 The model still talks to vLLM (or any other provider) over the normal chat API.
-When it wants a C++ build, it emits a **tool call**. The agent runtime
-(Pi, DeepSeek Harness, or any MCP client) executes that tool by spawning
-diagrun on this machine, then feeds the JSON result back as a tool-result
-message.
+On DeepSeek Harness, a `bash` `make`/`ninja`/`g++`/`cmake --build` is intercepted
+and compact JSON is returned as the bash result. MCP and Pi still emit named
+`diagrun_*` tool calls.
 
 ```text
 user prompt
@@ -25,8 +24,8 @@ user prompt
     ▼
 agent runtime  ──chat/completions──►  local vLLM (Qwen3-8B, …)
     │  ▲
-    │  │  tool_calls: [{ name: "diagrun_build", arguments: { command, cwd } }]
-    │  │  tool result JSON (compact; not the 80 KB dump)
+    │  │  DSH: bash { command: "make" }  →  compact JSON in bash stdout
+    │  │  MCP/Pi: diagrun_build { command, cwd }
     ▼  │
 diagrun tool  ──spawn──►  make / ninja / g++
     │
@@ -50,7 +49,8 @@ Regenerate the figure with `docs/plot_context_ab.py`.
 | Path | Who uses it | Capture |
 |------|-------------|---------|
 | CLI wrapper `diagrun [--] COMMAND…` | Humans, scripts | Live passthrough of stdout/stderr; original exit code |
-| Tool ops `diagrun_build` / `get_raw` / `show` / `get_diagnostic` | Models | No live passthrough; JSON only |
+| Tool ops `diagrun_build` / `get_raw` / `show` / `get_diagnostic` | MCP / Pi | No live passthrough; JSON only |
+| DSH `bash` wrap (`dsh-diagrun`) | DeepSeek Harness | Same JSON, returned as bash stdout |
 
 Both share `run_command()` and the same store. The CLI is a transparent
 wrapper. The tools are the agent-facing API.
@@ -110,7 +110,7 @@ src/diagrun/
   integrations/api.py    tool_build / get_raw / show / get_diagnostic
   integrations/mcp_server.py   MCP stdio
 
-integrations/dsh-diagrun/     DeepSeek Harness plugin (defineTool)
+integrations/dsh-diagrun/     DeepSeek Harness plugin (bash wrap)
 plugins/diagrun/              Pi extension + Agent Plugins MCP package
 fixtures/cpp_failures/        failing GCC/Make corpora
 ```
@@ -145,26 +145,22 @@ is a thin adapter over `dispatch(op, params)`.
                     └─────────────┬───────────────┘
            ┌──────────────┬───────┴────────┬──────────────┐
            ▼              ▼                ▼              ▼
-     diagrun call    MCP stdio      DSH plugin       Pi extension
-     JSON stdin      tools/call     defineTool       registerTool
+     diagrun call    MCP stdio      DSH bash wrap    Pi extension
+     JSON stdin      tools/call     tools/execute    registerTool
 ```
 
-DeepSeek Harness and Pi do **not** speak MCP for this path. They load a
-native tool and spawn `python3 -m diagrun call OP` with JSON on stdin.
-MCP (`diagrun mcp` / `plugins/diagrun/mcp.json`) is for other clients.
+DeepSeek Harness does **not** register extra tools. `dsh-diagrun` intercepts
+pure compile/link `bash` calls and spawns `python3 -m diagrun call build`.
+MCP (`diagrun mcp` / `plugins/diagrun/mcp.json`) and Pi keep named tools.
 
-Typical Pi / DSH turn:
+Typical DSH turn:
 
-1. Runtime sends chat request to vLLM, including the `diagrun_build` schema
-   in `tools`.
-2. vLLM (with `--enable-auto-tool-choice --tool-call-parser hermes`) returns
-   a structured `tool_calls` entry, not free-text XML.
-3. Runtime runs the local tool; diagrun executes `make` and writes the store.
-4. Runtime posts a `tool` / `toolResult` message with the compact JSON.
-5. Model continues (often a short `run_id` + `exit_code` reply).
+1. Runtime sends chat request to vLLM with stock tool schemas (including `bash`).
+2. Model calls `bash` with `command: make`.
+3. Plugin runs diagrun; compact JSON is rendered as the bash result (`[exit code: N]` still appended on failure).
+4. Model acts on `roots`.
 
-The LLM never executes the compiler. It only chooses arguments. diagrun is
-the process that actually builds.
+Typical Pi / MCP turn still uses `diagrun_build` in `tools`.
 
 ## What is not wired yet
 

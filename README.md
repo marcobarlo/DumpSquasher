@@ -5,14 +5,15 @@ and returns **independent root failures** instead of the raw dump.
 
 Python 3.9+. GCC/Clang + Make/CMake/Ninja. Version `0.1.0`.
 
-It is **not** an HTTP proxy, not a `bash` monkey-patch, and not an LLM
-summarizer. The model talks to vLLM (or any chat API) as usual. When it wants
-a C++ build it emits a **tool call**; Pi, DeepSeek Harness, or an MCP client
-spawns diagrun on this machine and feeds compact JSON back.
+It is **not** an HTTP proxy and not an LLM summarizer. The CLI does not
+monkey-patch the user's shell. The DeepSeek Harness plugin intercepts
+pure `bash` compile/link calls and returns compact JSON through the existing
+`bash` tool (no extra schemas). MCP and Pi still expose named `diagrun_*`
+tools.
 
 ```text
 agent
-  ↓  tool: diagrun_build
+  ↓  bash: make          (DSH wrap)    or    diagrun_build (MCP / Pi)
 diagrun  ──make / ninja / g++──►  store (~/.local/share/diagrun/runs/<ULID>/)
   ↓
 compact JSON: status, exit_code, run_id, roots[], raw.ref
@@ -131,6 +132,11 @@ syntax-recovery cascade after a bad edit is not listed as extra roots.
 
 ## Tools
 
+| Surface | How the model builds |
+|---------|----------------------|
+| DeepSeek Harness | Stock `bash` (`make` / `ninja` / `cmake --build` / `g++`). Plugin wraps those calls; compact JSON comes back as the bash result. |
+| MCP / Pi | Named tools below. |
+
 | Tool | Role |
 |------|------|
 | `diagrun_build` | Run `make` / `ninja` / `cmake --build` / `g++`. Returns compact JSON. |
@@ -142,7 +148,7 @@ Shared implementation: `diagrun.integrations.api.dispatch(op, params)`.
 
 ```text
 diagrun call     MCP stdio      DSH plugin       Pi extension
-JSON stdin       tools/call     defineTool       registerTool
+JSON stdin       tools/call     tools/execute    registerTool
         └──────────────┴──────────────┴──────────────┘
                          integrations/api.py
 ```
@@ -174,9 +180,12 @@ dsh plugin --profile headless add ./integrations/dsh-diagrun
 If `@deepseek-ai/dsh-tools` is unresolved, symlink it under
 `integrations/dsh-diagrun/node_modules/@deepseek-ai/dsh-tools`.
 
+The plugin does **not** register extra tools. It wraps `tools/execute` for
+pure compile/link `bash` calls. Combinators and `make test`/`clean` pass
+through.
+
 On hosts without bubblewrap/Landlock, bash `make` is refused unless
-`DSH_PERMISSION_MODE=danger-full-access`. diagrun is not gated that way.
-A/B walkthrough: [docs/dsh-headless-example.md](docs/dsh-headless-example.md).
+`DSH_PERMISSION_MODE=danger-full-access`.
 
 ## Store
 
@@ -251,5 +260,9 @@ still reads source and applies the fix. Prefer a false negative on collapse
 | [docs/architecture.md](docs/architecture.md) | Pipeline, store, how the model reaches diagrun |
 | [docs/principles.md](docs/principles.md) | Keep unknowns; collapse cascades; no silent drops |
 | [docs/demo.md](docs/demo.md) | CLI / Pi / DSH walkthrough |
-| [docs/dsh-headless-example.md](docs/dsh-headless-example.md) | A/B: tool on vs `bash make` |
+| [docs/dsh-headless-example.md](docs/dsh-headless-example.md) | A/B: wrap on vs `bash make` |
+| [docs/ab300-fix-and-context.png](docs/ab300-fix-and-context.png) | 300-case fix rate and full-context words |
+| [docs/ab300-build-dump-share.png](docs/ab300-build-dump-share.png) | Share of prompt that is the compiler dump |
+| [docs/ab300-build-savings.png](docs/ab300-build-savings.png) | Savings on build words only (prefix excluded) |
+| [docs/ab300-first-payload.png](docs/ab300-first-payload.png) | First compile: compact JSON vs bash dump |
 | [plan.md](plan.md) | Full build plan |

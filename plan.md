@@ -704,7 +704,7 @@ Install the bundle:
 dsh plugin --profile <name> add ./integrations/dsh-diagrun
 ```
 
-Registers `diagrun_build`, `diagrun_get_raw`, `diagrun_show`, and `diagrun_get_diagnostic` via `defineTool`.
+Registers no extra tools. Intercepts pure `bash` compile/link via `tools/execute` and returns compact JSON as the bash result.
 
 ## Pi agent
 

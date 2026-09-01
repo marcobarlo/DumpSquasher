@@ -1,6 +1,6 @@
 ---
 name: 300-case A/B harness
-overview: "Generate ~300 synthetic C++ apps (size × fault kind × propagation), then run a checkpointed DSH A/B: 300 with diagrun_build and 300 without (stock bash bounding). Store per-arm fix outcome and model-visible context size."
+overview: "Generate ~300 synthetic C++ apps (size × fault kind × propagation), then run a checkpointed DSH A/B: 300 with dsh-diagrun bash wrap and 300 without (stock bash bounding). Store per-arm fix outcome and model-visible context size."
 todos:
   - id: gen
     content: "Generator: 10 kinds × 5 sizes × 6 variants = 300 trees + fixture.json + vanilla gold"
@@ -51,15 +51,15 @@ For each case, **copy** the case tree to two scratch dirs (`/tmp/ab300/<id>/with
 flowchart LR
   gen[Generate 300 cases]
   copy[Copy to scratch]
-  withArm["Arm A: diagrun_build"]
+  withArm["Arm A: bash wrap"]
   noArm["Arm B: bash make stock DSH"]
   store[JSONL store]
   gen --> copy --> withArm --> store
   copy --> noArm --> store
 ```
 
-- **Arm A (tool):** `dsh-diagrun` plugin on. Prompt: compile only via `diagrun_build` (`command: make`, `cwd: scratch`). Act on `roots`; `get_raw` only if roots and unclassified empty. Stop when `exit_code` is 0 and `./app` still matches gold.
-- **Arm B (no-tool):** plugin removed (or a second profile `headless-no-diagrun` so we do not add/remove 600 times). Prompt: `bash` `make` only. Same gold stop. Stock spill/pruner; `bash-sandbox.timeoutMs: 600000` only.
+- **Arm A (wrap):** `dsh-diagrun` plugin on. Same user prompt as arm B: `bash` `make` in scratch. Plugin intercepts pure compile/link and returns compact roots as the bash result. Stop when `exit_code` is 0 and `./app` still matches gold.
+- **Arm B (no-tool):** plugin off (`headless-no-diagrun`). Same prompt. Stock spill/pruner; `bash-sandbox.timeoutMs: 600000` only.
 
 `DSH_PERMISSION_MODE=danger-full-access` so edits inside scratch work. Sequential sessions against the one vLLM (`qwen3-8b`, 32k) — expect **~20–50 hours**; the runner **must checkpoint**.
 

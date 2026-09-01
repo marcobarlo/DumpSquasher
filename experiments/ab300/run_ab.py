@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Checkpointed 300-case DSH A/B: diagrun_build vs stock bash.
+"""Checkpointed 300-case DSH A/B: dsh-diagrun bash wrap vs stock bash.
 
-Always runs both arms. Skips (case_id, arm) already in results.jsonl.
-Writes a row only after the gold `make && ./app` check.
+Always runs both arms with the same user prompt. Skips (case_id, arm)
+already in results.jsonl. Writes a row only after the gold `make && ./app`
+check.
 """
 
 from __future__ import annotations
@@ -123,10 +124,10 @@ def ensure_no_diagrun_profile() -> None:
     (dst / "cordis.patch.yml").write_text(patch, encoding="utf-8")
 
 
-def _prompt(arm: str, fixture: Dict[str, Any], scratch: Path) -> str:
+def _prompt(_arm: str, fixture: Dict[str, Any], scratch: Path) -> str:
     gold = int(fixture.get("gold_return_code") or GOLD_RETURN_CODE)
     kind = fixture["kind"]
-    common = f"""Fix the C++ program in {scratch} so `make` succeeds and `./app` still exits with code {gold}.
+    return f"""Fix the C++ program in {scratch} so `make` succeeds and `./app` still exits with code {gold}.
 
 Error class: {kind} — {fixture.get("propagation") or kind}
 Injected file: {fixture.get("inject", {}).get("file")}
@@ -134,17 +135,8 @@ Injected file: {fixture.get("inject", {}).get("file")}
 Rules:
 - Make a MINIMAL edit that removes the injected fault. Do not delete main, do not empty the program, do not change ./app's return code, do not add a new API to paper over the error.
 - Stop when the build exits 0.
-"""
-    if arm == "with":
-        return common + f"""
-1. Compile ONLY via diagrun_build. command: make   cwd: {scratch}
-   Do not use bash to compile.
-2. Act on roots in the compact JSON. Call diagrun_get_raw only if roots and unclassified are both empty. If no_progress is true, stop rebuilding and inspect the source instead of calling diagrun_build again.
 
-Reply with: what you changed, last exit_code.
-"""
-    return common + f"""
-1. There is no diagrun_build tool. Compile with the bash tool: `make` in {scratch}. Do not background it.
+1. Compile with the bash tool: `make` in {scratch}. Do not background it.
 2. Inspect the compiler output, edit the injected fault, rebuild until make exits 0.
 
 Reply with: what you changed, last make exit_code.

@@ -1,4 +1,5 @@
 cases/
 logs/
 run.log
+build_context.jsonl
 __pycache__/

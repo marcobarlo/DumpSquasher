@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "main": "index.js",
-  "files": ["index.js", "call.mjs", "cordis.patch.yml"],
-  "description": "DeepSeek Harness plugin: compact C++ build diagnostics via diagrun.",
+  "files": ["index.js", "call.mjs", "wrap.mjs", "cordis.patch.yml"],
+  "description": "DeepSeek Harness plugin: wrap bash compile/link and return compact diagrun roots.",
   "dependencies": {
     "@deepseek-ai/dsh-tools": "*"
   },

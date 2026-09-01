@@ -58,7 +58,7 @@ Plugin: `dsh plugin --profile headless add ./integrations/dsh-diagrun`.
 
 ```bash
 dsh --profile headless \
-  "Use the diagrun_build tool exactly once with command make and cwd /home/m00926961/RCA_agent_tool/fixtures/cpp_failures/missing_member. Then reply with only the run_id and exit_code."
+  "Use the bash tool exactly once: command make, workdir /home/m00926961/RCA_agent_tool/fixtures/cpp_failures/missing_member. Then reply with only the run_id and exit_code from the JSON."
 ```
 
 `CHOKIDAR_USEPOLLING=1` avoids inotify `ENOSPC` on this host. Qwen3 may emit

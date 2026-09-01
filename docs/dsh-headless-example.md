@@ -1,10 +1,15 @@
-# DSH headless: build with and without `diagrun_build`
+# DSH headless: build with and without the bash wrap
 
 Same **LMCache-Ascend** C++ target twice under DeepSeek Harness **headless**,
 with **stock dsh-base output bounding**:
 
-1. **Tool on** — `diagrun_build` (compact JSON).
-2. **Tool off** — bash. DSH does **not** put the full 239 KB dump in context.
+1. **Wrap on** — `dsh-diagrun` intercepts `bash` compile/link; compact JSON.
+2. **Wrap off** — stock bash. DSH does **not** put the full 239 KB dump in context.
+
+The figure below is from an earlier named-`diagrun_build` protocol. The wrap
+only intercepts `make` / `ninja` / `cmake --build` / `g++` — not a rebuild
+script. For the 300-case A/B, both arms use `bash` `make`; only the plugin
+differs.
 
 Stock bounds (`dsh-base` 0.1.1-rc.2):
 

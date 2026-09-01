@@ -1,100 +1,57 @@
-import { defineTool } from '@deepseek-ai/dsh-tools'
 import { callDiagrun } from './call.mjs'
+import { bashForegroundResult, isBuildCommand } from './wrap.mjs'
 
 export const name = 'dsh-diagrun'
-export const inject = ['tools']
+export const inject = ['tools', 'systemPrompt']
 
-function renderJson(_args, value) {
-  return [{ type: 'text', text: JSON.stringify(value) }]
-}
+const PROMPT =
+  'C++ builds invoked through bash (`make`, `ninja`, `cmake --build`, `g++`/`clang++`) ' +
+  'return compact root diagnostics (file/line/message/snippet) instead of the compiler dump. ' +
+  'Act on roots. If no_progress is true, stop rebuilding and inspect the source. ' +
+  'The full log stays on disk; do not fetch it unless roots and unclassified are both empty.'
 
-const objectOut = {
-  schema: { type: 'object', additionalProperties: true },
-  render: renderJson,
-}
-
-async function run(op, args, exec) {
-  const payload = await callDiagrun(op, args, exec && exec.signal)
-  if (!payload.ok) {
-    const err = new Error(payload.message || `diagrun ${op} failed`)
-    throw err
-  }
-  return payload.result
+function resolveCwd(exec, args) {
+  if (typeof args.workdir === 'string' && args.workdir.trim()) return args.workdir
+  const cwd = exec.agent?.session?.header?.cwd
+  return typeof cwd === 'string' && cwd.trim() ? cwd : undefined
 }
 
 export function apply(ctx) {
-  ctx.tools.register(
-    defineTool({
-      name: 'diagrun_build',
-      description:
-        'Run a C++ build through diagrun. Returns compact root diagnostics (file/line/message). Act on roots; call diagrun_get_raw only if roots and unclassified are both empty. If the result has no_progress: true, your last edit did not change the roots -- stop rebuilding and re-check the diff instead of calling this again.',
-      parameters: {
-        command: {
-          type: 'string',
-          required: true,
-          description: 'Build command, e.g. "cmake --build build" or "make -j8".',
+  ctx.systemPrompt.section({
+    name: 'tool:bash:diagrun',
+    order: 106,
+    text: PROMPT,
+  })
+  ctx.on('tools/execute', async (exec, next) => {
+    if (exec.name !== 'bash') return next()
+    const args = exec.arguments || {}
+    if (args.run_in_background === true) return next()
+    const command = String(args.command || '')
+    if (!isBuildCommand(command)) return next()
+    const cwd = resolveCwd(exec, args)
+    const timeoutMs = typeof args.timeoutMs === 'number' ? args.timeoutMs : 600000
+    try {
+      const payload = await callDiagrun(
+        'build',
+        {
+          command,
+          ...(cwd ? { cwd } : {}),
+          collapse_parse_recovery: true,
         },
-        cwd: { type: 'string', description: 'Working directory.' },
-        inject_diagnostics: {
-          type: 'boolean',
-          description: 'Inject -fdiagnostics-format=json (default true).',
-        },
-        collapse_parse_recovery: {
-          type: 'boolean',
-          description:
-            'Fold syntax-recovery follow-on errors into the causing root\'s evidence instead of listing them as separate roots (default true).',
-        },
-      },
-      output: objectOut,
-      async execute(args, exec) {
-        return run('build', args, exec)
-      },
-      presentCall(args) {
-        return { card: 'terminal', title: args.command, cwd: args.cwd }
-      },
-    }),
-  )
-  ctx.tools.register(
-    defineTool({
-      name: 'diagrun_get_raw',
-      description:
-        'Retrieve stored raw compiler/build output. Use only when diagrun_build returned no roots.',
-      parameters: {
-        run_id: { type: 'string', description: 'Run id; omit to use the last run.' },
-        offset: { type: 'number', description: 'Byte offset.' },
-        limit: { type: 'number', description: 'Max bytes to return.' },
-      },
-      output: objectOut,
-      async execute(args, exec) {
-        return run('get_raw', args, exec)
-      },
-    }),
-  )
-  ctx.tools.register(
-    defineTool({
-      name: 'diagrun_show',
-      description: 'Return metadata for a stored diagrun run.',
-      parameters: {
-        run_id: { type: 'string', description: 'Run id; omit to use the last run.' },
-      },
-      output: objectOut,
-      async execute(args, exec) {
-        return run('show', args, exec)
-      },
-    }),
-  )
-  ctx.tools.register(
-    defineTool({
-      name: 'diagrun_get_diagnostic',
-      description: 'Return one parsed diagnostic from a run when diagnostics.json exists.',
-      parameters: {
-        run_id: { type: 'string', required: true },
-        diagnostic_id: { type: 'string', required: true },
-      },
-      output: objectOut,
-      async execute(args, exec) {
-        return run('get_diagnostic', args, exec)
-      },
-    }),
-  )
+        exec.signal,
+      )
+      if (!payload.ok) return next()
+      const result = payload.result || {}
+      const exitCode = Number(result.exit_code)
+      return {
+        value: bashForegroundResult(
+          JSON.stringify(result),
+          Number.isFinite(exitCode) ? exitCode : 1,
+          timeoutMs,
+        ),
+      }
+    } catch {
+      return next()
+    }
+  })
 }
