@@ -10,7 +10,9 @@ from typing import Optional, Sequence
 
 from diagrun.config import DiagrunConfig
 from diagrun.exec.runner import run_command
-from diagrun.reducer.pipeline import persist_diagnostics
+from diagrun.instrument import record_build
+from diagrun.reducer.pipeline import check_progress, persist_diagnostics
+from diagrun.render.json import agent_payload, dumps_compact
 from diagrun.store.runs import RunNotFoundError, RunStore
 
 USAGE = """\
@@ -19,16 +21,17 @@ usage: diagrun [options] [--] COMMAND [ARGS...]
        diagrun [options] show [--raw] --last
        diagrun mcp
        diagrun call OP
+       diagrun install-wrappers [--dir DIR]
 
 Wrap a build command, capture stdout/stderr independently, and store the
 raw log under a ULID run id. On success or failure the child's exit code
-is returned unchanged. Streams are passed through live.
+is returned unchanged. Streams are passed through live unless --format json.
 
 Agent integrations:
   diagrun mcp          MCP stdio server (DeepSeek / Pi / any MCP client)
   diagrun call OP      JSON-in/JSON-out tool call (stdin params)
-
-By default, codegen-neutral diagnostic flags are injected
+  diagrun --format json -- cmake --build DIR
+                       compact roots JSON, original exit code (pip/setup.py)
 
 By default, codegen-neutral diagnostic flags are injected
 (-fdiagnostics-format=json) via compiler argv, Make CC/CXX wrappers,
@@ -38,6 +41,7 @@ Options:
   --store DIR
   --max-runs N
   --max-bytes N
+  --format json|passthrough  json: compact agent payload, no live dump
   --inject-diagnostics       inject structured diagnostic flags (default)
   --no-inject-diagnostics    parse the log as the build emitted it
   --collapse-parse-recovery  hide likely syntax-recovery follow-on errors
@@ -48,6 +52,13 @@ Retrieve a run:
   diagrun show RUN_ID
   diagrun show RUN_ID --raw
   diagrun show --last --raw
+
+PATH shims (cmake --build → diagrun --format json):
+  diagrun install-wrappers --dir /opt/diagrun/bin
+  export PATH="/opt/diagrun/bin:$PATH"
+
+Each build also writes ``<store>/instrument/<run_id>/{compiler.log,agent.json}``
+and appends ``journal.jsonl``. Disable with DIAGRUN_INSTRUMENT=0.
 """
 
 
@@ -58,6 +69,7 @@ class _GlobalArgs:
     max_bytes: Optional[int] = None
     inject_diagnostics: Optional[bool] = None
     collapse_parse_recovery: Optional[bool] = None
+    output_format: str = "passthrough"
     rest: Optional[list[str]] = None
 
 
@@ -79,6 +91,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not parsed.rest:
         sys.stderr.write(USAGE)
         return 2
+    if parsed.rest[0] == "install-wrappers":
+        return _cmd_install_wrappers(parsed.rest[1:])
 
     store = RunStore(parsed.store_root, max_runs=parsed.max_runs, max_bytes=parsed.max_bytes)
     if parsed.rest[0] == "show":
@@ -95,8 +109,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         inject_diagnostics=parsed.inject_diagnostics,
         collapse_parse_recovery=parsed.collapse_parse_recovery,
     )
-    captured = run_command(parsed.rest, store, passthrough=True, config=config)
-    persist_diagnostics(store, captured)
+    passthrough = parsed.output_format != "json"
+    captured = run_command(parsed.rest, store, passthrough=passthrough, config=config)
+    reduced = persist_diagnostics(store, captured)
+    if parsed.output_format == "json":
+        progressed = check_progress(store, captured.cwd, reduced)
+        payload = agent_payload(reduced, captured.id, no_progress=not progressed)
+        record_build(
+            store,
+            captured,
+            payload,
+            surface="cli_json",
+            returned_to_agent=True,
+        )
+        sys.stdout.write(dumps_compact(payload) + "\n")
+    else:
+        payload = agent_payload(reduced, captured.id)
+        record_build(
+            store,
+            captured,
+            payload,
+            surface="cli",
+            returned_to_agent=False,
+        )
     return captured.exit_code
 
 
@@ -147,6 +182,27 @@ def _parse_global(argv: Sequence[str]) -> _GlobalArgs:
             continue
         if item == "--no-collapse-parse-recovery":
             parsed.collapse_parse_recovery = False
+            index += 1
+            continue
+        if item in ("--format", "-F"):
+            if index + 1 >= len(argv):
+                sys.stderr.write("diagrun: --format requires json or passthrough\n")
+                return parsed
+            parsed.output_format = argv[index + 1].strip().lower()
+            if parsed.output_format not in ("json", "passthrough"):
+                sys.stderr.write("diagrun: --format must be json or passthrough\n")
+                return parsed
+            index += 2
+            continue
+        if item.startswith("--format="):
+            parsed.output_format = item.split("=", 1)[1].strip().lower()
+            if parsed.output_format not in ("json", "passthrough"):
+                sys.stderr.write("diagrun: --format must be json or passthrough\n")
+                return parsed
+            index += 1
+            continue
+        if item in ("--compact", "--json"):
+            parsed.output_format = "json"
             index += 1
             continue
         if item.startswith("-"):
@@ -200,6 +256,39 @@ def _cmd_show(store: RunStore, args: Sequence[str]) -> int:
     except ValueError as exc:
         sys.stderr.write(f"diagrun: {exc}\n")
         return 2
+
+
+def _cmd_install_wrappers(args: Sequence[str]) -> int:
+    from diagrun.exec.pathwrap import default_wrapper_dir, install_wrappers
+
+    directory: Optional[Path] = None
+    index = 0
+    while index < len(args):
+        item = args[index]
+        if item in ("--dir", "-d"):
+            if index + 1 >= len(args):
+                sys.stderr.write("diagrun: --dir requires a path\n")
+                return 2
+            directory = Path(args[index + 1])
+            index += 2
+            continue
+        if item.startswith("--dir="):
+            directory = Path(item.split("=", 1)[1])
+            index += 1
+            continue
+        sys.stderr.write(f"diagrun: unknown install-wrappers option {item}\n")
+        return 2
+    target = directory or default_wrapper_dir()
+    try:
+        written = install_wrappers(target)
+    except FileNotFoundError as exc:
+        sys.stderr.write(f"diagrun: {exc}\n")
+        return 2
+    sys.stdout.write(f"wrote {len(written)} shim(s) in {target}\n")
+    for path in written:
+        sys.stdout.write(f"  {path}\n")
+    sys.stdout.write(f"export PATH=\"{target}:$PATH\"\n")
+    return 0
 
 
 if __name__ == "__main__":

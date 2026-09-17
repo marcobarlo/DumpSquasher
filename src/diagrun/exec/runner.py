@@ -71,6 +71,7 @@ def run_command(
         wrap_dir=run_dir / "wrappers",
     )
     child_env = injected.env
+    child_env["DIAGRUN_ACTIVE"] = "1"
     executed = injected.argv
 
     live_out: Optional[BinaryIO]

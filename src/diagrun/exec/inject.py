@@ -116,8 +116,12 @@ def apply_inject(
     else:
         launcher = None
 
-    _append_clang_override(result_env)
-    methods.append("env.CCC_OVERRIDE_OPTIONS")
+    cmake_build = is_cmake_name(name) and "--build" in argv[1:]
+    # Do not export CCC_OVERRIDE_OPTIONS for cmake --build: AscendC/bisheng
+    # is Clang-based and may reject -fdiagnostics-format=json.
+    if not cmake_build:
+        _append_clang_override(result_env)
+        methods.append("env.CCC_OVERRIDE_OPTIONS")
 
     if is_compiler_name(name):
         new_argv = [argv[0], *DIAGNOSTIC_FLAGS, *argv[1:]]

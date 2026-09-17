@@ -11,6 +11,7 @@ from typing import Any, Mapping, Optional, Sequence, Union
 from diagrun.config import DiagrunConfig, env_bool
 from diagrun.diagnostics.model import raw_ref
 from diagrun.exec.runner import run_command
+from diagrun.instrument import record_build
 from diagrun.reducer.pipeline import check_progress, persist_diagnostics
 from diagrun.render.json import agent_payload, dumps_compact
 from diagrun.store.runs import RunNotFoundError, RunStore
@@ -73,7 +74,16 @@ def tool_build(
     )
     reduced = persist_diagnostics(store, captured)
     progressed = check_progress(store, captured.cwd, reduced)
-    return agent_payload(reduced, captured.id, no_progress=not progressed)
+    payload = agent_payload(reduced, captured.id, no_progress=not progressed)
+    record_build(
+        store,
+        captured,
+        payload,
+        surface="tool_build",
+        returned_to_agent=True,
+        environ=env,
+    )
+    return payload
 
 
 def tool_get_raw(

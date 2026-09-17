@@ -86,6 +86,19 @@ pip install -e .
 export PYTHONPATH="$PWD/src"
 ```
 
+## LMCache-Ascend (container)
+
+Kernel compile is `cmake --build` inside `pip install`. Install diagrun in the
+container and put a cmake shim first on PATH so that hop is compact JSON:
+
+```bash
+CONTAINER=vllm-ascend-dsv4-lmcache bash scripts/install_in_container.sh
+# then, in-container: pip install -e /workspace/dsv4-serving/LMCache-Ascend-MP
+```
+
+`diagrun --format json -- cmake --build DIR` also works as an explicit wrap.
+Set `DIAGRUN_DISABLE=1` to skip.
+
 ## Agent surfaces
 
 | Surface | How the model builds |
@@ -126,6 +139,19 @@ On hosts without bubblewrap/Landlock, set `DSH_PERMISSION_MODE=danger-full-acces
   meta.json  stdout.bin  stderr.bin  events.jsonl  diagnostics.json
 <store>/last
 ```
+
+## Instrumentation
+
+Every build writes the compiler dump and the compact agent JSON (survives run GC):
+
+```text
+<store>/instrument/<ULID>/compiler.log   # full transcript
+<store>/instrument/<ULID>/agent.json     # summary returned to the agent
+<store>/instrument/journal.jsonl
+<store>/instrument/diagrun-instrument.log
+```
+
+Always on. `DIAGRUN_INSTRUMENT=0` disables. `DIAGRUN_INSTRUMENT_DIR` overrides the path.
 
 ## Tests
 

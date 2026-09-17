@@ -105,6 +105,8 @@ class InjectApplyTests(unittest.TestCase):
             )
         self.assertEqual(result.argv, ["cmake", "--build", "build"])
         self.assertIn("cmake.build", result.methods)
+        self.assertNotIn("env.CCC_OVERRIDE_OPTIONS", result.methods)
+        self.assertNotIn("CCC_OVERRIDE_OPTIONS", result.env)
 
     def test_ninja_gets_path_wrappers(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
